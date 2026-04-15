@@ -463,6 +463,40 @@ def normalize_plain_translation(text: str) -> str:
     return cleaned
 
 
+TITLE_PRESERVE_PATTERNS = [
+    r"\b\d{1,2}\.\d{1,2}\b",      # 26.04 / 1.2 这种格式
+    r"\b\d+(?:\.\d+)+\b",         # 1.2.3 / 2026.04 这类版本号
+    r"\b\d{4}-\d{2}-\d{2}\b",     # 2026-04-12 这种日期
+]
+
+def mask_preserved_tokens(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """
+    把需要原样保留的 token 替换成占位符，避免模型擅自翻译。
+    """
+    mapping: list[tuple[str, str]] = []
+
+    def repl(match):
+        token = f"__DISNEWS_KEEP_{len(mapping)}__"
+        mapping.append((token, match.group(0)))
+        return token
+
+    masked = text
+    for pattern in TITLE_PRESERVE_PATTERNS:
+        masked = re.sub(pattern, repl, masked)
+
+    return masked, mapping
+
+
+def unmask_preserved_tokens(text: str, mapping: list[tuple[str, str]]) -> str:
+    """
+    把占位符还原回原始内容。
+    """
+    restored = text
+    for token, original in mapping:
+        restored = restored.replace(token, original)
+    return restored
+
+
 def build_deepseek_headers() -> dict:
     api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
@@ -533,16 +567,20 @@ def call_deepseek(messages: list[dict], max_tokens: int = 4096) -> str:
     raise RuntimeError(f"DeepSeek translation failed: {last_error}")
 
 
-def translate_text_to_zh(text: str) -> str:
+def translate_title_to_zh(title: str) -> str:
+    masked_title, mapping = mask_preserved_tokens(title)
+
     prompt = (
-        "请将下面这段内容翻译成简体中文。\n"
+        "请将下面的标题翻译成简体中文。\n"
         "要求：\n"
         "1. 只输出译文，不要解释。\n"
-        "2. 保留专有名词、数字、日期、URL。\n"
-        "3. 不要添加 Markdown。\n"
-        "4. 不要省略内容。\n\n"
-        f"{text}"
+        "2. 保留专有名词、数字、日期、版本号、URL。\n"
+        "3. 不要翻译以下占位符，它们必须原样保留：\n"
+        f"{', '.join(token for token, _ in mapping) if mapping else '无'}\n"
+        "4. 不要添加 Markdown。\n\n"
+        f"{masked_title}"
     )
+
     result = call_deepseek(
         [
             {"role": "system", "content": "你是专业翻译器，只输出准确的简体中文译文。"},
@@ -550,8 +588,10 @@ def translate_text_to_zh(text: str) -> str:
         ],
         max_tokens=TITLE_MAX_TOKENS,
     )
+
     cleaned = normalize_plain_translation(result)
-    return cleaned or text
+    cleaned = unmask_preserved_tokens(cleaned, mapping)
+    return cleaned or title
 
 
 def html_plain_len(fragment: str) -> int:
@@ -1089,7 +1129,7 @@ def main() -> int:
         try:
             # 标题翻译失败不影响正文翻译；标题失败则回退英文
             try:
-                translated_title = translate_text_to_zh(article["title"])
+                translated_title = translate_title_to_zh(article["title"])
                 logger.info("Title translated successfully")
             except Exception as exc:
                 logger.warning("Title translation failed, fallback to original title: %s", exc)
