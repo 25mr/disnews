@@ -201,6 +201,34 @@ def get_latest_article_url(session: requests.Session) -> str:
     return urljoin(BASE_URL, href)
 
 
+def sanitize_img_tag(img: Tag, base_url: str = BASE_URL) -> None:
+    src = img.get("src") or img.get("data-src") or img.get("data-original")
+    if src:
+        img["src"] = urljoin(base_url, src.strip())
+
+    # 移除所有可能导致撑破屏幕的属性
+    for attr in [
+        "srcset", "sizes", "width", "height",
+        "loading", "decoding", "data-src", "data-original",
+        "style"
+    ]:
+        img.attrs.pop(attr, None)
+
+    # 强制响应式显示
+    img["style"] = (
+        "display:block !important;"
+        "width:100% !important;"
+        "max-width:100% !important;"
+        "height:auto !important;"
+        "margin:12px auto !important;"
+        "border:0 !important;"
+        "outline:none !important;"
+        "box-sizing:border-box !important;"
+    )
+    img["border"] = "0"
+    img["align"] = "center"
+
+
 def clean_article_html(fragment_html: str, base_url: str) -> str:
     soup = BeautifulSoup(fragment_html, "lxml")
 
@@ -213,19 +241,12 @@ def clean_article_html(fragment_html: str, base_url: str) -> str:
             a["href"] = urljoin(base_url, href.strip())
 
     for img in soup.find_all("img"):
-        src = img.get("src") or img.get("data-src") or img.get("data-original")
-        if src:
-            img["src"] = urljoin(base_url, src.strip())
+        sanitize_img_tag(img, base_url)
 
-        for attr in ["srcset", "sizes", "width", "height", "loading", "decoding", "data-src", "data-original"]:
-            img.attrs.pop(attr, None)
-
-        img["style"] = append_style(
-            img.get("style"),
-            "max-width:100%;height:auto;display:block;margin:12px auto;border:0;outline:none;",
-        )
-        if not img.get("alt"):
-            img["alt"] = ""
+    # 也清理 picture/source 的 srcset，避免某些客户端选中超大图
+    for source in soup.find_all("source"):
+        for attr in ["srcset", "sizes", "width", "height"]:
+            source.attrs.pop(attr, None)
 
     return "".join(str(x) for x in soup.contents).strip()
 
@@ -451,7 +472,7 @@ def call_deepseek(messages: list[dict], max_tokens: int = 4096) -> str:
     payload = {
         "model": DEEPSEEK_MODEL,
         "messages": messages,
-        "temperature": 0.1,
+        "temperature": 1.3,
         "max_tokens": max_tokens,
         "stream": False,
     }
@@ -570,16 +591,21 @@ def style_email_fragment(fragment_html: str, text_color: str) -> str:
     soup = BeautifulSoup(fragment_html, "lxml")
     root = soup.body if soup.body else soup
 
+    # 二次清洗图片，防止翻译后又带回尺寸信息
+    for img in root.find_all("img"):
+        sanitize_img_tag(img, BASE_URL)
+
     for a in root.find_all("a"):
         a["style"] = append_style(
             a.get("style"),
             "color:#2563EB;text-decoration:underline;word-break:break-word;",
         )
 
-    for img in root.find_all("img"):
-        img["style"] = append_style(
-            img.get("style"),
-            "max-width:100%;height:auto;display:block;margin:12px auto;border:0;outline:none;",
+    # 给可能包含图片的容器加上防溢出
+    for tag in root.find_all(["figure", "figcaption", "div"]):
+        tag["style"] = append_style(
+            tag.get("style"),
+            "max-width:100% !important;overflow:hidden;",
         )
 
     for tag_name in ["p", "ul", "ol", "blockquote", "pre", "table", "figure", "figcaption"]:
@@ -592,8 +618,11 @@ def style_email_fragment(fragment_html: str, text_color: str) -> str:
                 extra = "margin:0 0 12px;padding:12px;background:#F3F4F6;border-radius:8px;white-space:pre-wrap;word-break:break-word;overflow-x:auto;"
             elif tag_name == "table":
                 extra = "width:100%;border-collapse:collapse;margin:0 0 12px;"
+            elif tag_name in {"figure", "figcaption"}:
+                extra = "margin:0 0 12px;max-width:100%;overflow:hidden;"
             else:
                 extra = "margin:0 0 12px;"
+
             tag["style"] = append_style(
                 tag.get("style"),
                 f"font-size:14px !important;line-height:1.6 !important;color:{text_color};{extra}",
@@ -635,12 +664,12 @@ def build_section_html(label: str, title: str, url: str, published_date: str, bo
         </td>
       </tr>
       <tr>
-        <td style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;padding:18px;">
-          <div style="font-size:14px !important;line-height:1.6 !important;color:{color};word-break:break-word;overflow-wrap:anywhere;">
+        <td style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;padding:18px;overflow:hidden;">
+          <div style="font-size:14px !important;line-height:1.6 !important;color:{color};word-break:break-word;overflow-wrap:anywhere;max-width:100%;overflow:hidden;">
             <p style="margin:0 0 10px;"><strong>{safe_title}</strong></p>
             <p style="margin:0 0 10px;">🔗 <a href="{safe_url}" style="color:#2563EB;text-decoration:underline;word-break:break-word;">{safe_url}</a></p>
             <p style="margin:0 0 14px;">📅 {safe_date}</p>
-            <div style="font-size:14px !important;line-height:1.6 !important;color:{color};word-break:break-word;overflow-wrap:anywhere;">
+            <div style="font-size:14px !important;line-height:1.6 !important;color:{color};word-break:break-word;overflow-wrap:anywhere;max-width:100%;overflow:hidden;">
               {styled_body}
             </div>
           </div>
@@ -744,8 +773,7 @@ def build_email_html(subject_date: str, article: dict | None, translated_title: 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;max-width:680px;width:100%;margin:0 auto;background-color:#FFFFFF;">
           <tr>
             <td style="background:linear-gradient(135deg,#0F172A 0%,#111827 100%);background-color:#0F172A;padding:24px 20px;text-align:left;">
-              <div style="font-size:22px !important;line-height:1.3 !important;font-weight:700;color:#FFFFFF;">🐾 DisNews</div>
-              <div style="font-size:13px !important;line-height:1.6 !important;color:#E2E8F0;margin-top:6px;">{html_escape(subject_date)}</div>
+              <div style="font-size:30px !important;line-height:1.3 !important;font-weight:700;color:#FFFFFF;">🐈 DisNews</div>
             </td>
           </tr>
           <tr>
