@@ -1,67 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Disroot Blog – Latest Articles</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    background:#f8fafc;color:#1e293b;line-height:1.6;
-  }
-  .container{max-width:720px;margin:0 auto;padding:40px 20px}
-  header{text-align:center;margin-bottom:40px}
-  header h1{font-size:28px;color:#0f172a}
-  header p{color:#64748b;margin-top:8px;font-size:14px}
-  .article-list{list-style:none}
-  .article-item{
-    background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:16px;
-    box-shadow:0 1px 3px rgba(0,0,0,.08);transition:box-shadow .2s;
-  }
-  .article-item:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)}
-  .article-title{
-    font-size:16px;font-weight:600;color:#0f172a;text-decoration:none;
-    display:block;margin-bottom:8px;
-  }
-  .article-title:hover{color:#2563eb}
-  .article-date{font-size:13px;color:#94a3b8}
-  .article-url{font-size:12px;color:#64748b;word-break:break-all;margin-top:4px;display:block}
-  .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;font-size:15px}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DisNews Archive</title>
 </head>
-<body>
-<div class="container">
-  <header>
-    <h1>🐾 Disroot Blog</h1>
-    <p>Latest 10 articles</p>
-  </header>
-  <ul class="article-list" id="list">
-    <li class="empty-state">Loading…</li>
-  </ul>
-</div>
-<script>
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-fetch('data.json')
-  .then(function(r){return r.json()})
-  .then(function(data){
-    var list=document.getElementById('list');
-    if(!data||!data.length){
-      list.innerHTML='<li class="empty-state">No articles yet.</li>';
-      return;
-    }
-    list.innerHTML=data.map(function(a){
-      return '<li class="article-item">'
-        +'<a class="article-title" href="'+esc(a.url)+'" target="_blank" rel="noopener">'+esc(a.title)+'</a>'
-        +'<span class="article-date">📅 '+esc(a.date)+'</span>'
-        +'<a class="article-url" href="'+esc(a.url)+'" target="_blank" rel="noopener">'+esc(a.url)+'</a>'
-        +'</li>';
-    }).join('');
-  })
-  .catch(function(){
-    document.getElementById('list').innerHTML=
-      '<li class="empty-state">Failed to load articles.</li>';
-  });
-</script>
+<body style="margin:0;padding:24px;font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#F3F4F6;color:#111827;">
+  <h1>🐾 DisNews Archive</h1>
+  <p>Waiting for the first GitHub Actions run...</p>
 </body>
 </html>
