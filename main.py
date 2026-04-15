@@ -22,9 +22,15 @@ DEEPSEEK_MODEL = "deepseek-reasoner"
 MAILEROO_API_URL = "https://smtp.maileroo.com/api/v2/emails"
 
 DIRECT_TRANSLATE_LIMIT = 6000
-CHUNK_TARGET = 5000
+CHUNK_TARGET = 12000
 TRANSLATION_RETRIES = 5
 CHUNK_PAUSE_SECONDS = 15
+
+TITLE_MAX_TOKENS = 512
+BODY_MAX_TOKENS = 8192
+
+# 用于判断翻译是否明显被截断
+TRANSLATION_MIN_RATIO = 0.45
 
 TZ_BJ = timezone(timedelta(hours=8))
 
@@ -533,7 +539,8 @@ def translate_text_to_zh(text: str) -> str:
         "要求：\n"
         "1. 只输出译文，不要解释。\n"
         "2. 保留专有名词、数字、日期、URL。\n"
-        "3. 不要添加 Markdown。\n\n"
+        "3. 不要添加 Markdown。\n"
+        "4. 不要省略内容。\n\n"
         f"{text}"
     )
     result = call_deepseek(
@@ -541,46 +548,98 @@ def translate_text_to_zh(text: str) -> str:
             {"role": "system", "content": "你是专业翻译器，只输出准确的简体中文译文。"},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=512,
+        max_tokens=TITLE_MAX_TOKENS,
     )
     cleaned = normalize_plain_translation(result)
     return cleaned or text
 
 
-def translate_html_to_zh(html_fragment: str) -> str:
-    text_len = len(BeautifulSoup(html_fragment, "lxml").get_text(" ", strip=True))
+def html_plain_len(fragment: str) -> int:
+    return len(BeautifulSoup(fragment, "lxml").get_text(" ", strip=True))
 
-    html_prompt_prefix = (
+
+def translation_looks_truncated(src_fragment: str, translated_fragment: str) -> bool:
+    src_len = html_plain_len(src_fragment)
+    dst_len = html_plain_len(translated_fragment)
+
+    # 太短的块不做判断
+    if src_len < 1800:
+        return False
+
+    # 输出长度明显过短，认为可能被截断
+    if dst_len < max(500, int(src_len * TRANSLATION_MIN_RATIO)):
+        return True
+
+    # 末尾不像完整句子，也视为可疑
+    dst_text = BeautifulSoup(translated_fragment, "lxml").get_text(" ", strip=True)
+    if src_len >= 2500 and dst_text and not re.search(r"[。！？.!?】）)\]”\"'…]$", dst_text):
+        return True
+
+    return False
+
+
+def translate_html_fragment_once(fragment_html: str) -> str:
+    prompt = (
         "请将下面的 HTML 片段翻译成简体中文。\n"
         "要求：\n"
         "1. 保留所有 HTML 标签、属性、链接和图片。\n"
         "2. 不要翻译 URL。\n"
         "3. 不要删除或新增标签，不要修改标签结构。\n"
         "4. 不要输出解释、注释、Markdown 或代码块。\n"
-        "5. 输出必须是可直接嵌入邮件的 HTML 片段。\n\n"
+        "5. 不要省略任何内容。\n"
+        "6. 输出必须是可直接嵌入邮件的 HTML 片段。\n\n"
+        f"{fragment_html}"
     )
 
-    def translate_one(fragment: str) -> str:
-        result = call_deepseek(
-            [
-                {"role": "system", "content": "你是专业 HTML 翻译器，只输出翻译后的 HTML 片段。"},
-                {"role": "user", "content": html_prompt_prefix + fragment},
-            ],
-            max_tokens=4096,
-        )
-        return normalize_translated_fragment(result)
+    result = call_deepseek(
+        [
+            {"role": "system", "content": "你是专业 HTML 翻译器，只输出翻译后的 HTML 片段。"},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=BODY_MAX_TOKENS,
+    )
+    return normalize_translated_fragment(result)
 
+
+def translate_html_to_zh(html_fragment: str, chunk_target: int = CHUNK_TARGET) -> str:
+    text_len = html_plain_len(html_fragment)
+
+    # 小于 6000，直接翻译
     if text_len < DIRECT_TRANSLATE_LIMIT:
-        return translate_one(html_fragment)
+        return translate_html_fragment_once(html_fragment)
 
-    chunks = split_html_for_translation(html_fragment, CHUNK_TARGET)
+    # 长文本：按块级 HTML 边界拆分
+    chunks = split_html_for_translation(html_fragment, chunk_target)
     if not chunks:
         return ""
 
     translated_chunks = []
+
     for idx, chunk in enumerate(chunks, start=1):
-        logger.info("Translating chunk %s/%s (approx %s chars)", idx, len(chunks), html_text_length(chunk))
-        translated_chunks.append(translate_one(chunk))
+        chunk_len = html_plain_len(chunk)
+        logger.info("Translating chunk %s/%s (%s chars)", idx, len(chunks), chunk_len)
+
+        translated_chunk = translate_html_fragment_once(chunk)
+
+        # 如果结果疑似被截断，自动再拆小重试
+        if translation_looks_truncated(chunk, translated_chunk) and chunk_len > 1800:
+            logger.warning("Chunk looks truncated, retry with smaller split")
+
+            subchunks = split_html_for_translation(chunk, max(3000, chunk_target // 2))
+            sub_results = []
+
+            for sidx, sub in enumerate(subchunks, start=1):
+                sub_len = html_plain_len(sub)
+                logger.info("Retry translating subchunk %s/%s (%s chars)", sidx, len(subchunks), sub_len)
+                sub_results.append(translate_html_fragment_once(sub))
+                if sidx != len(subchunks):
+                    time.sleep(CHUNK_PAUSE_SECONDS)
+
+            translated_chunk = "\n".join(sub_results).strip()
+
+        translated_chunks.append(translated_chunk)
+
+        # 最后一块不需要暂停
         if idx != len(chunks):
             time.sleep(CHUNK_PAUSE_SECONDS)
 
