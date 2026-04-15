@@ -4,9 +4,99 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DisNews Archive</title>
+  <style>
+    body {
+      margin: 0;
+      background: #F3F4F6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+                   Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: #111827;
+    }
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .header {
+      background: linear-gradient(135deg, #0F172A 0%, #111827 100%);
+      color: #fff;
+      padding: 24px 20px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.3;
+    }
+    .header p {
+      margin: 8px 0 0;
+      color: #E2E8F0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    thead th {
+      background: #F9FAFB;
+      text-align: left;
+      padding: 12px 10px;
+      border-bottom: 1px solid #E5E7EB;
+      font-size: 13px;
+      color: #374151;
+    }
+    @media (max-width: 720px) {
+      .hide-mobile {
+        display: none;
+      }
+      table {
+        table-layout: auto;
+      }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:24px;font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#F3F4F6;color:#111827;">
-  <h1>🐾 DisNews Archive</h1>
-  <p>Waiting for the first GitHub Actions run...</p>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <h1>🐾 DisNews Archive</h1>
+        <p>Updated at 2026-04-15 23:49 UTC+8</p>
+      </div>
+      <div style="padding:16px;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:44px;text-align:center;">#</th>
+              <th>Title</th>
+              <th>URL</th>
+              <th style="width:180px;" class="hide-mobile">Published date</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          <tr>
+            <td style="padding:12px 10px;border-bottom:1px solid #E5E7EB;color:#6B7280;width:44px;text-align:center;">1</td>
+            <td style="padding:12px 10px;border-bottom:1px solid #E5E7EB;word-break:break-word;">
+              <a href="https://disroot.org/blog/disnews-26.04" style="color:#1D4ED8;text-decoration:none;font-weight:600;">DisNews 26.04 - Saddle-sore but fume free</a>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid #E5E7EB;word-break:break-word;">
+              <a href="https://disroot.org/blog/disnews-26.04" style="color:#2563EB;text-decoration:underline;">https://disroot.org/blog/disnews-26.04</a>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid #E5E7EB;color:#374151;white-space:nowrap;">12th Apr 2026</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
