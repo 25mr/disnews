@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 BASE_URL = "https://disroot.org"
 BLOG_URL = "https://disroot.org/blog"
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
-DEEPSEEK_MODEL = "deepseek-reasoner"
+DEEPSEEK_MODEL = "deepseek-v4-flash"
 MAILEROO_API_URL = "https://smtp.maileroo.com/api/v2/emails"
 
 DIRECT_TRANSLATE_LIMIT = 6000
