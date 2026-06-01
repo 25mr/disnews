@@ -1,8 +1,8 @@
-name: DisNews Weekly
+name: DisNews Monthly
 
 on:
   schedule:
-    - cron: "6 3 * * 0"
+    - cron: "6 3 28 * *"
   workflow_dispatch:
 
 permissions:
